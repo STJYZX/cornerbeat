@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>四角音游 · CornerBeat</title>
+<style>
+  html,body{margin:0;padding:0;background:#0d0f1a;color:#e8eaf6;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;height:100%;}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;}
+  canvas{background:#141728;border-radius:14px;box-shadow:0 0 40px rgba(90,120,255,.15);max-width:96vw;max-height:92vh;}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,12,24,.94);backdrop-filter:blur(6px);overflow-y:auto;}
+  #diffCol{position:fixed;left:56px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:16px;z-index:10;}
+  .hidden{display:none !important;}
+  #menu h1{font-size:42px;margin:0 0 6px;letter-spacing:2px;}
+  #menu .sub{color:#9aa3c0;margin-bottom:26px;}
+  .btn{cursor:pointer;background:linear-gradient(135deg,#4a6cf7,#7b5cff);border:none;color:#fff;font-size:18px;padding:14px 42px;border-radius:30px;margin:8px;transition:transform .12s;}
+  .btn:hover{transform:scale(1.05);}
+  .btn.ghost{background:transparent;border:2px solid #4a6cf7;}
+  #info{margin-top:18px;color:#b9c1de;font-size:15px;line-height:1.9;text-align:center;}
+  .key{display:inline-block;border:1px solid #7c86b8;border-radius:6px;padding:0 8px;margin:0 2px;background:#1c2138;}
+  .kbtn{cursor:pointer;width:52px;height:52px;margin:0 6px;border-radius:12px;border:2px solid #7c86b8;background:#1c2138;color:#fff;font-size:22px;font-weight:700;}
+  .kbtn:hover{border-color:#ffe14a;}
+  .kbtn.cap{border-color:#ffe14a;color:#ffe14a;animation:pulse .6s infinite alternate;}
+  @keyframes pulse{from{opacity:1;}to{opacity:.4;}}
+  #keyMap{margin:12px 0 4px;color:#9aa3c0;font-size:14px;}
+  #bpmInput{width:110px;padding:8px 12px;border-radius:10px;border:2px solid #4a6cf7;background:#1c2138;color:#fff;font-size:17px;text-align:center;margin-top:8px;}
+  #dbg{position:fixed;top:8px;left:8px;background:rgba(10,12,24,.9);border:1px solid #4a6cf7;border-radius:10px;color:#9fe8b0;font:13px Consolas;padding:8px 12px;z-index:999;white-space:normal;max-width:560px;word-break:break-all;}
+  #songPanel{position:fixed;right:36px;top:50%;transform:translateY(-50%);width:240px;max-height:70vh;overflow-y:auto;background:rgba(20,23,40,.92);border:2px solid #2a3150;border-radius:14px;padding:14px;color:#b9c1de;font-size:13px;}
+  #songPanel h3{margin:0 0 10px;color:#ffe14a;font-size:15px;text-align:center;}
+  .songItem{background:#1c2138;border:1px solid #2a3150;border-radius:10px;padding:8px 10px;margin:6px 0;cursor:pointer;}
+  .songItem:hover{border-color:#7df3ff;}
+  .songItem .nm{color:#fff;font-weight:600;word-break:break-all;}
+  .songItem .st{color:#7df3ff;margin-top:3px;}
+  #miniCv{background:#141728;border-radius:12px;margin:12px 0 6px;border:2px solid #2a3150;}
+  #diffRow{margin:10px 0 4px;color:#9aa3c0;font-size:14px;}
+  .dbtn{display:block;width:150px;margin:0;padding:11px 0;border-radius:12px;border:2px solid #7c86b8;background:#1c2138;color:#9aa3c0;font-size:17px;font-weight:700;cursor:pointer;text-align:center;}
+  .dbtn:hover{border-color:#7df3ff;}
+  .dbtn.sel{border-color:#ffe14a;color:#ffe14a;background:#2a2f4d;}
+  #tapHint{color:#ffd166;font-size:20px;font-weight:600;margin:10px 0;}
+  #cd{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+  #cdNum{font-size:150px;font-weight:800;color:#ffe14a;text-shadow:0 0 40px rgba(255,225,74,.6);}
+  #cdSub{font-size:24px;color:#b9c1de;margin-top:8px;}
+  #pauseMenu{background:rgba(10,12,24,.88);}
+  #pauseMenu h2{font-size:36px;margin-bottom:26px;}
+  .pbtn{cursor:pointer;background:#1c2138;border:2px solid #4a6cf7;color:#fff;font-size:19px;padding:13px 60px;border-radius:28px;margin:8px;transition:transform .12s;}
+  .pbtn:hover{transform:scale(1.05);background:#232a4d;}
+  #pauseMenu .hint{color:#8f97b8;margin-top:16px;font-size:14px;}
+</style>
+</head>
+<body>
+<div id="dbg">音频诊断</div>
+<div id="wrap"><canvas id="cv" width="720" height="720"></canvas></div>
+
+<div id="menu" class="overlay">
+  <div id="diffCol">
+    <div class="dbtn sel" id="diffEasy">EASY</div>
+    <div class="dbtn" id="diffHard">HARD</div>
+  </div>
+  <h1>🎵 四角音游</h1>
+  <div class="sub">四角出键 · 飞向中心 · 到心即打 · <b style="color:#ffe14a">v14</b></div>
+  <button class="btn" id="btnDemo">▶ 玩内置演示曲</button>
+  <button class="btn ghost" id="btnFile">🎧 上传自己的歌曲</button>
+  <input type="file" id="file" accept="audio/*" class="hidden">
+  <div id="info">
+    按键：<span class="key">D</span> 左上 · <span class="key">K</span> 右上 · <span class="key">C</span> 左下 · <span class="key">M</span> 右下<br>
+    开始后倒数 3-2-1，空四拍再出键；音符到达中心方块瞬间按键<br>
+    <span class="key">Esc</span> 暂停（可继续/重来/回主界面）
+  </div>
+  <canvas id="miniCv" width="240" height="240"></canvas>
+  <div id="keyMap">自定义键位（点击后按新键）：<br>
+    <button class="kbtn" data-i="0">D</button><button class="kbtn" data-i="1">F</button><button class="kbtn" data-i="2">J</button><button class="kbtn" data-i="3">K</button>
+  </div>
+  <div id="speedRow">流速（音符飞到中心的时间）：
+    <input type="range" id="speedRange" min="0.6" max="2.0" step="0.05" value="1.15">
+    <span id="speedVal">1.15s</span>
+  </div>
+  <div id="tapHint" class="hidden"></div>
+  <div id="fileInfo" class="hidden"></div>
+  <div id="songPanel">
+    <h3>我的歌曲（点击加载）</h3>
+    <div id="songList" style="text-align:center;color:#8f97b8;">（还没有保存的歌）</div>
+  </div>
+</div>
+
+<div id="cd" class="hidden">
+  <div id="cdNum">3</div>
+  <div id="cdSub">准备</div>
+</div>
+
+<div id="pauseMenu" class="overlay hidden">
+  <h2>⏸ 已暂停</h2>
+  <button class="pbtn" id="pResume">▶ 继续（倒数后开始）</button>
+  <button class="pbtn" id="pRestart">↻ 重来</button>
+  <button class="pbtn" id="pQuit">🏠 回主界面</button>
+  <div class="hint">快捷键：<span class="key">Enter</span> 继续 · <span class="key">R</span> 重来 · <span class="key">Q</span> 回主界面</div>
+</div>
+
+<script>
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const W = 720, H = 720, CX = W/2, CY = H/2;
+const KEYS = ['D','K','C','M'];   // 左上D 右上K 左下C 右下M
+// 恢复本地保存的键位（刷新不丢）
+try {
+  const savedKeys = JSON.parse(localStorage.getItem('cbKeys2') || 'null');
+  if (Array.isArray(savedKeys) && savedKeys.length === 4 && savedKeys.every(k => typeof k === 'string' && k.length === 1)){
+    for (let i=0;i<4;i++) KEYS[i] = savedKeys[i].toUpperCase();
+  }
+} catch(e){}
+const CORNERS = [ {x:150,y:150}, {x:W-150,y:150}, {x:150,y:H-150}, {x:W-150,y:H-150} ];
+const COLORS = ['#4aa8ff','#ff6bcb','#54d76b','#ffb14a'];
+const SQ = 150;
+let travel = 1.15;   // 音符飞行秒数（主界面可调流速）
+try {
+  const sv = parseFloat(localStorage.getItem('cbTravel'));
+  if (Number.isFinite(sv) && sv >= 0.6 && sv <= 2.0) travel = sv;
+} catch(e){}
+const JU = { PERFECT:0.05, GREAT:0.10, GOOD:0.15, MISS:0.18 };
+const LEADIN_BEATS = 4;   // 开场空四拍
+
+// 静态背景层（网格+四角按键底座）预渲染，避免每帧重画
+const staticCv = document.createElement('canvas');
+staticCv.width = W; staticCv.height = H;
+const sctx = staticCv.getContext('2d');
+function drawStatic(){
+  sctx.clearRect(0,0,W,H);
+  sctx.strokeStyle = 'rgba(120,135,200,0.07)';
+  sctx.lineWidth = 1;
+  for(let i=0;i<=W;i+=60){ sctx.beginPath(); sctx.moveTo(i,0); sctx.lineTo(i,H); sctx.stroke(); }
+  for(let i=0;i<=H;i+=60){ sctx.beginPath(); sctx.moveTo(0,i); sctx.lineTo(W,i); sctx.stroke(); }
+  CORNERS.forEach((c,i)=>{
+    sctx.fillStyle = COLORS[i] + '33';
+    sctx.strokeStyle = COLORS[i];
+    sctx.lineWidth = 2.5;
+    const r=16, x=c.x-44, y=c.y-44, w=88, h=88;
+    sctx.beginPath();
+    sctx.moveTo(x+r,y); sctx.arcTo(x+w,y,x+w,y+h,r); sctx.arcTo(x+w,y+h,x,y+h,r);
+    sctx.arcTo(x,y+h,x,y,r); sctx.arcTo(x,y,x+w,y,r); sctx.closePath();
+    sctx.fill(); sctx.stroke();
+    sctx.fillStyle = '#fff';
+    sctx.font = 'bold 34px Consolas';
+    sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+    sctx.fillText(KEYS[i], c.x, c.y+2);
+  });
+}
+drawStatic();
+
+// 音频上下文在页面加载时就创建（代价发生在加载期，不在点击瞬间），
+// 点击时只做廉价的 resume()
+let AC = null;
+let master = null;
+
+// 安全建引擎（浏览器对同页引擎数量有限制，建不出来就返回 null 而不是崩溃）
+function newAC(){
+  try { return new (window.AudioContext || window.webkitAudioContext)(); }
+  catch(e){ lastErr = '引擎创建失败: ' + (e?.message || e); return null; }
+}
+
+// 统一恢复器：手势内现场建引擎（新建即运行态），失败则换新引擎重试，全链路去重
+let resumeTask = null, rebuildCount = 0;
+function ensureRunning(){
+  if (AC && AC.state === 'running'){ resumeTask = null; rebuildCount = 0; return true; }
+  if (!AC){
+    AC = newAC();
+    if (!AC) return false;
+    if (AC.state === 'running'){ return true; }
+  }
+  if (!resumeTask){
+    resumeTask = AC.resume()
+      .then(() => { resumeTask = null; rebuildCount = 0; return true; })
+      .catch(e => {
+        resumeTask = null;
+        // 游戏中绝不重建引擎（重建会杀掉正在播放的音乐），只等下一次手势重试
+        if (st && st.mode === 'playing'){
+          lastErr = '游戏中恢复被拒，下次按键时重试';
+          return false;
+        }
+        rebuildCount++;
+        lastErr = '恢复被拒，换新引擎重试(' + rebuildCount + '): ' + (e?.message || e);
+        if (rebuildCount <= 3){
+          try { AC.close(); } catch(_){}
+          const nac = newAC();
+          if (!nac){ lastErr = '引擎数量超限，稍后自动重试'; return false; }
+          AC = nac;
+          return ensureRunning();
+        }
+        lastErr = '音频恢复失败: ' + (e?.message || e);
+        return false;
+      });
+  }
+  return false;
+}
+
+// 音频诊断面板
+const dbg = document.getElementById('dbg');
+let lastErr = '';
+setInterval(() => {
+  const mode = st ? st.mode : '无游戏';
+  if (!AC){ dbg.textContent = `AC=null（引擎未建） | 模式: ${mode}\n${lastErr}`; return; }
+  dbg.textContent = `AC状态: ${AC.state} | 模式: ${mode}\n已载歌曲: ${songBuf ? Math.round(songBuf.duration)+'s' : '无'}\n${lastErr}`;
+}, 1000);
+window.addEventListener('error', e => {
+  let loc = '';
+  if (e.error && e.error.stack){
+    const m = e.error.stack.match(/:(\d+):(\d+)/);
+    if (m) loc = ' @四角音游.html:' + m[1] + ':' + m[2];
+  }
+  lastErr = '错误: ' + e.message + loc;
+});
+
+// 自愈看门狗：游戏/等待中若音频上下文被系统挂起（页面卡顿等），自动恢复
+setInterval(() => {
+  if (AC && st && (st.mode === 'playing' || st.mode === 'countdown') && AC.state === 'suspended'){
+    lastErr = '检测到音频挂起，已自动恢复';
+    ensureRunning();
+  }
+}, 1500);
+
+let st = null;
+const cdEl = document.getElementById('cd'), cdNum = document.getElementById('cdNum'), cdSub = document.getElementById('cdSub');
+const pauseMenu = document.getElementById('pauseMenu');
+const tapHint = document.getElementById('tapHint'), fileInfo = document.getElementById('fileInfo');
+let taps = [], fileName = '', songBuf = null, tapBpm = null, offsetMs = 0, capturing = -1;
+try {
+  const so = parseInt(localStorage.getItem('cbOffset'));
+  if (Number.isFinite(so)) offsetMs = so;
+} catch(e){}
+
+// ---------- 状态工具 ----------
+function freshState(isDemo, bpm){
+  return { mode:'menu', notes:[], bpm, effBpm:bpm, offset:offsetMs, startTime:0, songDur:0, isDemo,
+    trackName: isDemo ? '演示曲' : fileName, nodes:[], src:null, score:0, combo:0, maxCombo:0,
+    cnt:{P:0,G:0,O:0,M:0}, fx:[], cdEnd:0, demoChunks:null, nextChunk:0, padFlash:[0,0,0,0],
+    goAnchor:null, resumeRetry:0, recordSaved:false };
+}
+function songTime(){ return (AC ? AC.currentTime : 0) - st.startTime + st.offset/1000; }
+
+// ---------- 音频 ----------
+function makeBlip(freq, dur=0.08, type='square', vol=0.22){
+  if (!AC) return;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
+  o.connect(g); g.connect(master);
+  o.start(); o.stop(AC.currentTime + dur);
+}
+function scheduleDemoRange(bpm, from, to, t0){
+  const beat = 60/bpm;
+  const add = n => st.nodes.push(n);
+  const kick = t => { const o=AC.createOscillator(), g=AC.createGain(); o.type='sine';
+    o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(45,t+0.12);
+    g.gain.setValueAtTime(0.9,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.25); add(o); add(g); };
+  const hat = t => { const len=AC.sampleRate*0.05, b=AC.createBuffer(1,len,AC.sampleRate), d=b.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+    const s=AC.createBufferSource(), hp=AC.createBiquadFilter(), g=AC.createGain();
+    hp.type='highpass'; hp.frequency.value=7000; g.gain.value=0.18;
+    s.buffer=b; s.connect(hp); hp.connect(g); g.connect(master); s.start(t); add(s); };
+  const bass = (t,f)=>{ const o=AC.createOscillator(), g=AC.createGain(); o.type='sawtooth'; o.frequency.value=f;
+    g.gain.setValueAtTime(0.35,t); g.gain.exponentialRampToValueAtTime(0.001,t+beat*0.9);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+beat); add(o); add(g); };
+  const arp = (t,f)=>{ const o=AC.createOscillator(), g=AC.createGain(); o.type='square'; o.frequency.value=f;
+    g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.001,t+beat/2);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+beat/2); add(o); add(g); };
+  const bassLine=[110,110,130.8,98], arpBase=[440,523.25,659.25,783.99];
+  for(let i=from;i<to;i++){
+    const t = t0 + i*beat;
+    kick(t);
+    if(i%2===1) hat(t);
+    bass(t, bassLine[(i>>2)%4]);
+    arp(t, arpBase[i%4] * (i%8<4?1:1.5));
+  }
+}
+function queueDemoChunks(bpm){
+  st.demoChunks = [];
+  for (let i=0;i<48;i+=2) st.demoChunks.push({ from:i, to:Math.min(i+2,48) });   // 每帧只建 2 拍，几乎无感
+  st.nextChunk = 0;
+}
+function pumpDemoChunk(){
+  if (!st.demoChunks || st.nextChunk >= st.demoChunks.length) return;
+  let t0;
+  if (st.mode === 'playing' && st.goAnchor){
+    t0 = st.goAnchor;   // 游戏中补排：沿用开场锚点，保持与谱面对齐
+  } else {
+    const remainSec = Math.max(0, (st.cdEnd - performance.now())/1000);
+    t0 = AC.currentTime + remainSec + LEADIN_BEATS*60/st.bpm + 0.05;
+  }
+  const c = st.demoChunks[st.nextChunk++];
+  scheduleDemoRange(st.bpm, c.from, c.to, t0);
+}
+function beginAudio(){
+  if (!AC){ ensureRunning(); return; }
+  ensureRunning();
+  const leadSec = LEADIN_BEATS * 60 / st.effBpm;   // 与谱面同一个 BPM，起播对齐
+  if (st.isDemo){
+    // 节点全没了才重新排队（不在此处同步创建，交由每帧泵送）
+    if (!st.nodes.length) queueDemoChunks(st.bpm);
+  }
+  else {
+    const src = AC.createBufferSource(); src.buffer = songBuf; src.connect(master);
+    src.start(AC.currentTime + leadSec);
+    st.src = src;
+  }
+}
+function stopAudio(){
+  for (const n of st.nodes){ try{ n.stop(); }catch(e){} }
+  st.nodes = [];
+  if (st.src){ try{ st.src.stop(); }catch(e){} st.src = null; }
+}
+
+// ---------- 谱面 ----------
+function genChart(bpm, count, phase, hard){
+  const beat = 60/bpm, lead = LEADIN_BEATS*beat + (phase || 0), notes = [];
+  const pat = [0,2,1,3, 2,0,3,1, 3,1,0,2, 1,3,2,0];
+  const left = [0, 2], right = [1, 3];
+  const pick = (arr) => arr[Math.random() < 0.5 ? 0 : 1];
+  const addDouble = (i) => {
+    const t = lead + i*beat;
+    notes.push({ t, lane: pick(left), judged:false });
+    notes.push({ t, lane: pick(right), judged:false });
+  };
+  const addTriple = (i) => {
+    const t = lead + i*beat;
+    if (Math.random() < 0.5){   // 两左一右
+      notes.push({ t, lane: left[0], judged:false });
+      notes.push({ t, lane: left[1], judged:false });
+      notes.push({ t, lane: pick(right), judged:false });
+    } else {                    // 一左两右
+      notes.push({ t, lane: pick(left), judged:false });
+      notes.push({ t, lane: right[0], judged:false });
+      notes.push({ t, lane: right[1], judged:false });
+    }
+  };
+  // 1) 先规划哪些拍是双押/三押（含连出），这些拍不放单键
+  const chordBeats = new Set();
+  for (let i=3;i<count;i+=4){
+    chordBeats.add(i);
+    let j = i + 1;
+    while (j < count && Math.random() < 0.35){
+      if (j%4===3 || (hard && j%8===7)){ j++; continue; }
+      chordBeats.add(j);
+      j++;
+    }
+  }
+  // 2) 单键：跳过双押/三押拍
+  for (let i=0;i<count;i++){
+    if (!chordBeats.has(i)) notes.push({ t: lead + i*beat, lane: pat[i%pat.length], judged:false });
+  }
+  // 3) 双押/三押
+  const sorted = [...chordBeats].sort((a,b)=>a-b);
+  for (const i of sorted){
+    if (hard && i%8===7){ addTriple(i); }   // HARD：每 8 拍一个三押
+    else { addDouble(i); }
+  }
+  return notes;
+}
+
+// ---------- 歌曲库（IndexedDB 持久保存音频文件 + 每曲 BPM） ----------
+const idb = {
+  db: null,
+  open(){
+    return new Promise((res, rej) => {
+      const req = indexedDB.open('cbGame', 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore('songs', { keyPath: 'name' }); };
+      req.onsuccess = () => { idb.db = req.result; res(); };
+      req.onerror = () => rej(req.error);
+    });
+  },
+  put(name, blob){
+    return new Promise((res, rej) => {
+      const tx = idb.db.transaction('songs', 'readwrite');
+      tx.objectStore('songs').put({ name, blob, time: Date.now() });
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+  },
+  get(name){
+    return new Promise((res, rej) => {
+      const tx = idb.db.transaction('songs', 'readonly');
+      const rq = tx.objectStore('songs').get(name);
+      rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+    });
+  },
+  all(){
+    return new Promise((res, rej) => {
+      const tx = idb.db.transaction('songs', 'readonly');
+      const rq = tx.objectStore('songs').getAll();
+      rq.onsuccess = () => res(rq.result || []); rq.onerror = () => rej(rq.error);
+    });
+  },
+};
+function getSongBpms(){
+  try { return JSON.parse(localStorage.getItem('cbSongBpm') || '{}'); } catch(e){ return {}; }
+}
+function setSongBpm(name, bpm){
+  try { const m = getSongBpms(); m[name] = bpm; localStorage.setItem('cbSongBpm', JSON.stringify(m)); } catch(e){}
+}
+async function renderSongList(){
+  const el = document.getElementById('songList');
+  try {
+    await idb.open();
+    const songs = await idb.all();
+    if (!songs.length){ el.innerHTML = '（还没有保存的歌）'; return; }
+    const bpms = getSongBpms();
+    el.innerHTML = '';
+    for (const s of songs){
+      const best = bestForTrack(s.name);
+      const acc = best && best.acc != null ? best.acc + '%' : '—';
+      const item = document.createElement('div');
+      item.className = 'songItem';
+      item.innerHTML = `<div class="nm">${s.name}</div><div class="st">最佳 ${best ? best.score + ' 分 · 准确率 ' + acc : '暂无成绩'}${bpms[s.name] ? ' · BPM ' + bpms[s.name] : ''}</div>`;
+      item.onclick = () => loadSavedSong(s.name, bpms[s.name]);
+      el.appendChild(item);
+    }
+  } catch(e){ el.innerHTML = '（歌曲库读取失败）'; }
+}
+async function loadSavedSong(name, bpm){
+  try {
+    await idb.open();
+    const rec = await idb.get(name);
+    if (!rec || !rec.blob){ return; }
+    const arr = await rec.blob.arrayBuffer();
+    ensureRunning();
+    songBuf = await AC.decodeAudioData(arr);
+    fileName = name;
+    taps = []; tapBpm = bpm || null;
+    fileInfo.classList.remove('hidden');
+    fileInfo.innerHTML = `已载入：${fileName}（${Math.round(songBuf.duration)} 秒）<br>按 <span class="key">空格</span> 重新打拍子测 BPM，或者直接输入：<br><input type="number" id="bpmInput" placeholder="直接输入 BPM" min="30" max="400" ${bpm ? 'value="' + bpm + '"' : ''}><br>用 <span class="key">←</span><span class="key">→</span> 微调判定偏移（当前 ${offsetMs}ms）<br>准备好了按 <span class="key">回车</span> 开始`;
+    tapHint.classList.remove('hidden');
+    tapHint.textContent = bpm ? `已用上次的 BPM ${bpm}，可直接回车开始` : '请按空格打拍子…';
+  } catch(e){ lastErr = '加载歌曲失败: ' + (e?.message || e); }
+}
+renderSongList();
+
+// ---------- 成绩保存 ----------
+function loadRecords(){
+  try { const r = JSON.parse(localStorage.getItem('cbRecords') || 'null'); return Array.isArray(r) ? r : []; }
+  catch(e){ return []; }
+}
+function bestForTrack(track){
+  const rs = loadRecords().filter(r => r.track === track);
+  if (!rs.length) return null;
+  return rs.reduce((a,b) => (b.score > a.score ? b : a));
+}
+function saveRecord(rec){
+  try {
+    const rs = loadRecords();
+    rs.push(rec);
+    if (rs.length > 100) rs.splice(0, rs.length - 100);
+    localStorage.setItem('cbRecords', JSON.stringify(rs));
+  } catch(e){}
+}
+
+// ---------- 开始/暂停 ----------
+function startGame(isDemo, bpm){
+  ensureRunning();
+  master = AC.createGain(); master.gain.value = 0.9; master.connect(AC.destination);
+  st = freshState(isDemo, bpm);
+  document.getElementById('menu').classList.add('hidden');
+  if (isDemo){
+    st.bpm = bpm;
+    st.notes = genChart(bpm, 48, 0, difficulty === 'hard');
+    st.songDur = LEADIN_BEATS*60/bpm + 48*60/bpm;
+    queueDemoChunks(bpm);   // 倒数期间逐帧创建音频，避免开场卡顿
+  } else {
+    st.effBpm = bpm;
+    setSongBpm(fileName, bpm);   // 记住这首歌用的 BPM
+    st.notes = genChart(bpm, Math.max(4, Math.floor(songBuf.duration * bpm / 60) - 4), 0, difficulty === 'hard');
+    st.songDur = songBuf.duration + LEADIN_BEATS*60/st.effBpm;
+  }
+  enterCountdown(false);
+}
+function enterCountdown(isResume){
+  st.mode = isResume ? 'resumeCount' : 'countdown';
+  st.cdEnd = performance.now() + 3000;   // 3-2-1，每秒一步
+  st.resumeRetry = 0;
+  cdSub.textContent = isResume ? '继续' : '准备';
+  cdEl.classList.remove('hidden');
+}
+function doPause(){
+  if (st.mode !== 'playing') return;
+  st.mode = 'paused';
+  if (AC) AC.suspend();
+  pauseMenu.classList.remove('hidden');
+}
+function doResume(){
+  pauseMenu.classList.add('hidden');
+  enterCountdown(true);
+}
+function doRestart(){
+  pauseMenu.classList.add('hidden');
+  stopAudio();
+  if (AC && AC.state === 'suspended') AC.resume();   // 恢复被暂停冻结的音频时钟
+  const isDemo = st.isDemo, bpm = st.bpm;
+  st = freshState(isDemo, bpm);
+  if (isDemo){
+    st.notes = genChart(bpm, 48, 0, difficulty === 'hard');
+    st.songDur = LEADIN_BEATS*60/bpm + 48*60/bpm;
+    queueDemoChunks(bpm);
+  } else {
+    st.effBpm = bpm;
+    setSongBpm(fileName, bpm);   // 记住这首歌用的 BPM
+    st.notes = genChart(bpm, Math.max(4, Math.floor(songBuf.duration * bpm / 60) - 4), 0, difficulty === 'hard');
+    st.songDur = songBuf.duration + LEADIN_BEATS*60/st.effBpm;
+  }
+  enterCountdown(false);
+}
+function doQuit(){
+  pauseMenu.classList.add('hidden');
+  stopAudio();
+  st = null;
+  document.getElementById('menu').classList.remove('hidden');
+}
+
+document.getElementById('btnDemo').onclick = () => startGame(true, 100);
+document.getElementById('btnFile').onclick = () => document.getElementById('file').click();
+document.getElementById('pResume').onclick = doResume;
+document.getElementById('pRestart').onclick = doRestart;
+document.getElementById('pQuit').onclick = doQuit;
+
+// 难度选择（竖着选，保存到本地；HARD 仅多三押，不采音）
+let difficulty = 'easy';
+try { const d = localStorage.getItem('cbDiff'); if (d === 'easy' || d === 'hard') difficulty = d; } catch(e){}
+const diffEasy = document.getElementById('diffEasy'), diffHard = document.getElementById('diffHard');
+function refreshDiffUI(){
+  diffEasy.classList.toggle('sel', difficulty === 'easy');
+  diffHard.classList.toggle('sel', difficulty === 'hard');
+}
+diffEasy.addEventListener('click', () => { difficulty = 'easy'; try { localStorage.setItem('cbDiff','easy'); } catch(e){} refreshDiffUI(); });
+diffHard.addEventListener('click', () => { difficulty = 'hard'; try { localStorage.setItem('cbDiff','hard'); } catch(e){} refreshDiffUI(); });
+refreshDiffUI();
+
+// 流速调节
+const speedRange = document.getElementById('speedRange'), speedVal = document.getElementById('speedVal');
+speedRange.value = travel;
+speedVal.textContent = travel.toFixed(2) + 's';
+speedRange.addEventListener('input', () => {
+  travel = Number(speedRange.value);
+  speedVal.textContent = travel.toFixed(2) + 's';
+  try { localStorage.setItem('cbTravel', String(travel)); } catch(e){}
+});
+
+// 主界面迷你游戏画面（展示键位布局，改键时高亮对应角）
+const mini = document.getElementById('miniCv'), mctx = mini.getContext('2d');
+const MW = 240, MH = 240, MCX = 120, MCY = 120;
+const MCORNERS = [ {x:48,y:48}, {x:MW-48,y:48}, {x:48,y:MH-48}, {x:MW-48,y:MH-48} ];
+function drawMini(){
+  mctx.clearRect(0,0,MW,MH);
+  mctx.strokeStyle = 'rgba(120,135,200,0.12)';
+  mctx.lineWidth = 1;
+  for(let i=0;i<MW;i+=40){ mctx.beginPath(); mctx.moveTo(i,0); mctx.lineTo(i,MH); mctx.stroke(); }
+  for(let i=0;i<MH;i+=40){ mctx.beginPath(); mctx.moveTo(0,i); mctx.lineTo(MW,i); mctx.stroke(); }
+  // 角落到中心的指引线
+  MCORNERS.forEach((c,i)=>{
+    mctx.strokeStyle = COLORS[i] + '44';
+    mctx.beginPath(); mctx.moveTo(c.x,c.y); mctx.lineTo(MCX,MCY); mctx.stroke();
+  });
+  // 中心方块
+  mctx.strokeStyle = '#ffffff88';
+  mctx.fillStyle = 'rgba(255,255,255,0.05)';
+  mctx.lineWidth = 2;
+  mctx.beginPath(); mctx.rect(MCX-42, MCY-42, 84, 84); mctx.fill(); mctx.stroke();
+  // 四角按键底座
+  MCORNERS.forEach((c,i)=>{
+    mctx.fillStyle = COLORS[i] + '40';
+    mctx.strokeStyle = COLORS[i];
+    mctx.lineWidth = 2.5;
+    const x=c.x-24, y=c.y-24;
+    mctx.beginPath(); mctx.rect(x, y, 48, 48); mctx.fill(); mctx.stroke();
+    if (capturing === i){   // 正在改的角：黄色脉冲圈
+      mctx.strokeStyle = '#ffe14a';
+      mctx.lineWidth = 3;
+      mctx.beginPath(); mctx.rect(x-4, y-4, 56, 56); mctx.stroke();
+    }
+    mctx.fillStyle = '#fff';
+    mctx.font = 'bold 17px Consolas';
+    mctx.textAlign = 'center'; mctx.textBaseline = 'middle';
+    mctx.fillText(KEYS[i], c.x, c.y+1);
+  });
+}
+drawMini();
+
+// 自定义键位
+document.querySelectorAll('.kbtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    capturing = Number(btn.dataset.i);
+    document.querySelectorAll('.kbtn').forEach(b => b.classList.remove('cap'));
+    btn.classList.add('cap');
+    btn.textContent = '?';
+    drawMini();
+  });
+});
+function refreshKeyUI(){
+  document.querySelectorAll('.kbtn').forEach(btn => {
+    btn.textContent = KEYS[Number(btn.dataset.i)];
+    btn.classList.remove('cap');
+  });
+  try { localStorage.setItem('cbKeys2', JSON.stringify(KEYS)); } catch(e){}
+  drawStatic();   // 角落按键标签变了，重画静态层
+  drawMini();
+  document.getElementById('info').innerHTML =
+    `按键：<span class="key">${KEYS[0]}</span> 左上 · <span class="key">${KEYS[1]}</span> 右上 · <span class="key">${KEYS[2]}</span> 左下 · <span class="key">${KEYS[3]}</span> 右下<br>` +
+    `开始后倒数 3-2-1，空两拍再出键；音符到达中心方块瞬间按键<br>` +
+    `<span class="key">Esc</span> 暂停（可继续/重来/回主界面）`;
+}
+refreshKeyUI();   // 加载时同步一次保存的键位
+
+document.getElementById('file').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  fileName = f.name;
+  const arr = await f.arrayBuffer();
+  AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+  ensureRunning();
+  songBuf = await AC.decodeAudioData(arr);   // 上传时就解码+预热，开游戏零加载
+  taps = []; tapBpm = null;
+  // 持久保存到歌曲库
+  try { await idb.open(); await idb.put(fileName, f); } catch(e){}
+  renderSongList();
+  fileInfo.classList.remove('hidden');
+  fileInfo.innerHTML = `已载入：${fileName}（${Math.round(songBuf.duration)} 秒）<br>按 <span class="key">空格</span> 跟着节奏打拍子测 BPM，或者直接输入：<br><input type="number" id="bpmInput" placeholder="直接输入 BPM" min="30" max="400"><br>用 <span class="key">←</span><span class="key">→</span> 微调判定偏移（当前 ${offsetMs}ms）<br>准备好了按 <span class="key">回车</span> 开始`;
+  tapHint.classList.remove('hidden');
+  tapHint.textContent = '请按空格打拍子…';
+});
+
+// 切走标签页自动暂停：防止后台被浏览器节流导致卡顿和音画错位
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && st && st.mode === 'playing'){
+    doPause();
+  }
+});
+
+document.addEventListener('keydown', ev => {
+  // 准备/倒数阶段：任何按键都是用户手势，立刻尝试恢复音频
+  if (st && (st.mode === 'countdown' || st.mode === 'resumeCount') && AC && AC.state === 'suspended'){
+    ensureRunning();
+  }
+  // 正在录制新键位
+  if (capturing >= 0){
+    ev.preventDefault();
+    const k = ev.key.toUpperCase();
+    if (k.length === 1 && !['Escape','Enter'].includes(ev.key)){
+      KEYS[capturing] = k;
+      capturing = -1;
+      refreshKeyUI();
+    }
+    return;
+  }
+  if (st && st.mode === 'paused'){
+    if (ev.key === 'Enter') doResume();
+    else if (ev.key === 'r' || ev.key === 'R') doRestart();
+    else if (ev.key === 'q' || ev.key === 'Q') doQuit();
+    return;
+  }
+  if (st && st.mode === 'playing'){
+    if (ev.key === 'Escape'){ doPause(); return; }
+    const i = KEYS.indexOf(ev.key.toUpperCase());
+    if (i >= 0){
+      st.padFlash[i] = 1;   // 按键瞬间角落方块亮一下
+      hit(i);
+    }
+    return;
+  }
+  if (st && st.mode === 'result'){
+    if (ev.key === 's' || ev.key === 'S'){ saveResultImage(); return; }
+    if (ev.key === 'Enter'){ st = null; document.getElementById('menu').classList.remove('hidden'); }
+    else if (ev.key === 'r' || ev.key === 'R'){ const isDemo = st.isDemo, bpm = st.bpm; startGame(isDemo, bpm); }
+    return;
+  }
+  if (!st && songBuf){
+    if (ev.code === 'Space'){ ev.preventDefault(); const now = performance.now(); taps.push(now);
+      if (taps.length >= 2){ const iv = (taps[taps.length-1]-taps[0])/(taps.length-1);
+        if (iv > 250){ tapBpm = Math.round(60000/iv); tapHint.textContent = `BPM ≈ ${tapBpm}（共 ${taps.length} 拍）`; } } }
+    else if (ev.key === 'ArrowLeft'){ offsetMs -= 10; try { localStorage.setItem('cbOffset', String(offsetMs)); } catch(e){} fileInfo.innerHTML = fileInfo.innerHTML.replace(/偏移（当前 .*?ms）/, `偏移（当前 ${offsetMs}ms）`); }
+    else if (ev.key === 'ArrowRight'){ offsetMs += 10; try { localStorage.setItem('cbOffset', String(offsetMs)); } catch(e){} fileInfo.innerHTML = fileInfo.innerHTML.replace(/偏移（当前 .*?ms）/, `偏移（当前 ${offsetMs}ms）`); }
+    else if (ev.key === 'Enter'){
+      const inp = document.getElementById('bpmInput');
+      const typed = inp ? parseInt(inp.value) : NaN;
+      const bpm = Number.isFinite(typed) && typed >= 30 && typed <= 400 ? typed : tapBpm;
+      if (bpm) startGame(false, bpm);
+      else tapHint.textContent = '先打拍子测 BPM 或直接输入 BPM 再回车！';
+    }
+  }
+});
+
+// ---------- 判定 ----------
+function hit(idx){
+  const t = songTime();
+  let best = null, bd = 1e9;
+  for (const n of st.notes){
+    if (n.judged || n.lane !== idx) continue;
+    const d = Math.abs(n.t - t);
+    if (d <= JU.GOOD && d < bd){ bd = d; best = n; }
+  }
+  if (!best) return;
+  best.judged = true;
+  let grade, color;
+  if (bd <= JU.PERFECT){ grade='PERFECT'; color='#ffe14a'; st.cnt.P++; st.score += 300; st.combo++; }
+  else if (bd <= JU.GREAT){ grade='GREAT'; color='#7df3ff'; st.cnt.G++; st.score += 200; st.combo++; }
+  else { grade='GOOD'; color='#b9ffa8'; st.cnt.O++; st.score += 100; st.combo++; }
+  st.maxCombo = Math.max(st.maxCombo, st.combo);
+  st.fx.push({ t:0, text:grade, color, x:CX, y:CY-40 });
+  makeBlip(660 + idx*80, 0.06, 'square', 0.18);
+}
+
+// ---------- 绘制 ----------
+function drawScene(t){
+  ctx.clearRect(0,0,W,H);
+  ctx.drawImage(staticCv, 0, 0);
+  for (const n of st.notes){
+    const p = (t - (n.t - travel)) / travel;
+    if (p < 0) continue;
+    const q = Math.min(p, 1);
+    const x = CORNERS[n.lane].x + (CX - CORNERS[n.lane].x) * q;
+    const y = CORNERS[n.lane].y + (CY - CORNERS[n.lane].y) * q;
+    ctx.strokeStyle = COLORS[n.lane] + '44';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(CORNERS[n.lane].x, CORNERS[n.lane].y); ctx.lineTo(x, y); ctx.stroke();
+    if (n.judged) continue;
+    if (p > 1 && t > n.t + JU.MISS){
+      n.judged = true; st.cnt.M++; st.combo = 0;
+      st.fx.push({ t:0, text:'MISS', color:'#ff6b6b', x:CX, y:CY+60 });
+      continue;
+    }
+    ctx.fillStyle = COLORS[n.lane];
+    ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = COLORS[n.lane] + '99';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y, 21, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#0d0f1a'; ctx.font = 'bold 13px Consolas';
+    ctx.fillText(KEYS[n.lane], x, y+1);
+  }
+  // 角落按键：按下时闪亮 + 衰减
+  for (let i=0;i<4;i++){
+    const f = st.padFlash[i];
+    if (f > 0.02){
+      const c = CORNERS[i];
+      ctx.globalAlpha = Math.min(f, 1);
+      ctx.strokeStyle = COLORS[i];
+      ctx.lineWidth = 5;
+      roundRect(c.x-48, c.y-48, 96, 96, 18); ctx.stroke();
+      ctx.globalAlpha = 1;
+      st.padFlash[i] = f - 0.07;
+    }
+  }
+  // 中心判定区：跟着 BPM 节拍律动（每拍咚一下）
+  const beatSec = 60 / st.bpm;
+  const ph = ((t % beatSec) + beatSec) % beatSec / beatSec;
+  const pulse = 1 + 0.07 * Math.pow(1 - ph, 2.5);
+  ctx.strokeStyle = '#ffffff88';
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 3;
+  roundRect(CX-SQ*pulse, CY-SQ*pulse, SQ*2*pulse, SQ*2*pulse, 18); ctx.fill(); ctx.stroke();
+  st.fx = st.fx.filter(f => (f.t += 0.016) < 0.7);
+  for (const f of st.fx){
+    ctx.globalAlpha = 1 - f.t/0.7;
+    ctx.fillStyle = f.color;
+    ctx.font = 'bold 30px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(f.text, f.x, f.y - f.t*60);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 26px Segoe UI';
+  ctx.fillText('SCORE ' + st.score, 24, 44);
+  ctx.textAlign = 'right';
+  ctx.fillText(st.combo > 1 ? st.combo + ' COMBO' : '', W-24, 44);
+  const prog = Math.min(Math.max(t,0) / st.songDur, 1);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(0, H-8, W, 8);
+  ctx.fillStyle = '#7b5cff';
+  ctx.fillRect(0, H-8, W*prog, 8);
+}
+
+function drawResult(){
+  const total = st.cnt.P + st.cnt.G + st.cnt.O + st.cnt.M;
+  const acc = total ? (st.cnt.P + st.cnt.G*0.7 + st.cnt.O*0.4) / total : 0;
+  const rank = acc >= 0.95 ? 'S' : acc >= 0.9 ? 'A' : acc >= 0.8 ? 'B' : acc >= 0.65 ? 'C' : 'D';
+  // 保存成绩（每局一次，含准确率）
+  if (!st.recordSaved){
+    st.recordSaved = true;
+    saveRecord({ time: new Date().toLocaleString(), track: st.trackName, score: st.score, combo: st.maxCombo, rank, acc: Math.round(acc * 1000) / 10 });
+    renderSongList();
+  }
+  const best = bestForTrack(st.trackName);
+  const totalRuns = loadRecords().length;
+  ctx.fillStyle = 'rgba(10,12,24,0.88)';
+  ctx.fillRect(0,0,W,H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#9aa3c0'; ctx.font = '22px Segoe UI';
+  ctx.fillText(st.trackName, CX, CY-160);
+  ctx.fillStyle = '#ffe14a'; ctx.font = 'bold 110px Segoe UI';
+  ctx.fillText(rank, CX, CY-105);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 32px Segoe UI';
+  ctx.fillText('得分 ' + st.score + ' · 最大连击 ' + st.maxCombo, CX, CY-25);
+  ctx.fillStyle = '#9aa3c0'; ctx.font = '21px Segoe UI';
+  ctx.fillText(`Perfect ${st.cnt.P} · Great ${st.cnt.G} · Good ${st.cnt.O} · Miss ${st.cnt.M} · 准确率 ${Math.round(acc * 1000) / 10}%`, CX, CY+20);
+  ctx.fillStyle = '#7df3ff'; ctx.font = '20px Segoe UI';
+  ctx.fillText(best ? `本曲最佳：${best.score} 分（${best.rank} 级 · ${best.combo} 连击）· 共玩 ${totalRuns} 局` : `首次记录 · 共玩 ${totalRuns} 局`, CX, CY+60);
+  ctx.fillStyle = '#9aa3c0'; ctx.font = '19px Segoe UI';
+  ctx.fillText('S 保存成绩图 · 回车回菜单 · R 再来一局', CX, CY+100);
+}
+function saveResultImage(){
+  try {
+    const a = document.createElement('a');
+    a.download = '成绩-' + (st.trackName || '未知') + '.png';
+    a.href = cv.toDataURL('image/png');
+    a.click();
+  } catch(e){ lastErr = '保存图片失败: ' + (e?.message || e); }
+}
+
+function mainLoop(){
+  requestAnimationFrame(mainLoop);
+  try { mainLoopBody(); }
+  catch(err){
+    let loc = '';
+    if (err && err.stack){
+      const m = err.stack.match(/四角音游\.html:(\d+:\d+)/);
+      if (m) loc = ' @四角音游.html:' + m[1];
+    }
+    lastErr = '渲染错误: ' + err.message + loc;
+  }
+}
+function mainLoopBody(){
+  if (!st) return;
+  if (st.mode === 'countdown' || st.mode === 'resumeCount'){
+    if (st.mode === 'countdown') pumpDemoChunk();   // 倒数期间每帧摊开建音频
+    const left = Math.ceil((st.cdEnd - performance.now())/1000);
+    if (left > 0){
+      cdNum.textContent = Math.max(left, 1);
+      cdEl.classList.remove('hidden');
+      drawScene(st.mode === 'countdown' ? 0 : songTime());
+      return;
+    }
+    cdEl.classList.add('hidden');
+    if (st.mode === 'countdown'){
+      // 音频还没就绪：自动每帧重试，就绪瞬间自动开跑
+      if (!AC || AC.state === 'suspended'){
+        cdNum.textContent = '▶';
+        cdSub.textContent = '音频准备中…';
+        cdEl.classList.remove('hidden');
+        ensureRunning();
+        return;
+      }
+      st.startTime = AC.currentTime;
+      st.goAnchor = st.startTime + LEADIN_BEATS*60/st.bpm + 0.05;   // 演示曲音频锚点
+      beginAudio();
+      st.mode = 'playing';
+    } else {
+      ensureRunning();
+      st.mode = 'playing';
+    }
+    return;
+  }
+  if (st.mode === 'paused'){ drawScene(songTime()); return; }
+  if (st.mode === 'result'){ drawResult(); return; }
+  if (st.mode !== 'playing') return;
+  if (st.isDemo) pumpDemoChunk();   // 游戏中继续逐帧补排剩余音频段
+  const t = songTime();
+  drawScene(t);
+  if (t > st.songDur + 1.5){
+    st.mode = 'result';
+    stopAudio();
+  }
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+requestAnimationFrame(mainLoop);
+</script>
+</body>
+</html>
